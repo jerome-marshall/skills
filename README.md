@@ -12,4 +12,5 @@ Each skill lives in its own directory under `skills/` and is defined by a `SKILL
 | --- | --- |
 | [`bro`](skills/bro/SKILL.md) | Restate the last message in plain human language, with no jargon. |
 | [`caveman`](skills/caveman/SKILL.md) | Ultra-compressed communication mode. Cuts output tokens ~65% by speaking like a smart caveman while keeping full technical accuracy. Intensity levels: lite, full, ultra. Manually invoked only. |
+| [`gws`](skills/gws/SKILL.md) | Google Workspace CLI — interact with Drive, Sheets, Docs, Slides, Forms, and Tasks from the terminal via the `gws` command. Covers auth, global flags, helper commands, and per-product reference files. |
 | [`jira-cli`](skills/jira-cli/SKILL.md) | Interact with Jira from the terminal via [`jira-cli`](https://github.com/ankitpokhrel/jira-cli) — view, search, create, edit, transition, comment, and manage epics/sprints. Agent-friendly (plain output, non-interactive) and covers Cloud and Server/Data Center auth. |
