@@ -14,7 +14,7 @@ description: >
 
 A Go-based CLI for Atlassian Jira (Cloud and Server/Data Center). Covers issues, epics, sprints, comments, worklogs, and project navigation.
 
-GitHub: [ankitpokhrel/jira-cli](https://github.com/ankitpokhrel/jira-cli) — v1.7.0
+Tool: `ankitpokhrel/jira-cli` — v1.7.0
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ If `jira me` fails with a token error, the user needs to set `JIRA_API_TOKEN` in
 
 Config file: `~/.config/.jira/.config.yml` (note the hidden `.jira` subdirectory — easy to miss).
 
-For **Cloud**: generate an API token from [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens), export as `JIRA_API_TOKEN`, then run `jira init` and select Cloud.
+For **Cloud**: generate an API token from your Atlassian account security settings, export as `JIRA_API_TOKEN`, then run `jira init` and select Cloud.
 
 For **Server/Data Center with PAT** (on-premise):
 
@@ -204,7 +204,7 @@ printf 'y\n' | jira issue create --template /path/to/template.tmpl --no-input
 | `-C` | Component (repeatable) |
 | `-P` | Parent/Epic key |
 | `--fix-version` | Fix version |
-| `--custom` | Custom field (see [docs](https://github.com/ankitpokhrel/jira-cli/discussions/346)) |
+| `--custom` | Custom field |
 | `-T`, `--template` | Read description body from a file (or `-` for stdin) |
 | `--web` | Open the created issue in the browser afterward |
 | `--no-input` | Skip interactive prompts (required for agents) — but does not skip the final create confirmation; use `printf 'y\n' \|` for that |
