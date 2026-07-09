@@ -1,0 +1,13 @@
+# jerome-skills
+
+My personal collection of agent skills.
+
+Each skill lives in its own directory under `skills/` and is defined by a `SKILL.md` file. A skill packages reusable instructions (and optionally supporting scripts and resources) that an AI coding agent can load on demand to perform a specific task.
+
+---
+
+## Skills
+
+| Skill | Description |
+| --- | --- |
+| [`bro`](skills/bro/SKILL.md) | Restate the last message in plain human language, with no jargon. |
