@@ -12,3 +12,4 @@ Each skill lives in its own directory under `skills/` and is defined by a `SKILL
 | --- | --- |
 | [`bro`](skills/bro/SKILL.md) | Restate the last message in plain human language, with no jargon. |
 | [`caveman`](skills/caveman/SKILL.md) | Ultra-compressed communication mode. Cuts output tokens ~65% by speaking like a smart caveman while keeping full technical accuracy. Intensity levels: lite, full, ultra. Manually invoked only. |
+| [`jira-cli`](skills/jira-cli/SKILL.md) | Interact with Jira from the terminal via [`jira-cli`](https://github.com/ankitpokhrel/jira-cli) — view, search, create, edit, transition, comment, and manage epics/sprints. Agent-friendly (plain output, non-interactive) and covers Cloud and Server/Data Center auth. |
