@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mechanical review gates for pr skill artifacts."""
+"""Mechanical review gates for record-ui-walkthrough artifacts."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import preview_common as common
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location(
-    "pr_demo_silent", HERE / "build-pr-demo.py"
+    "walkthrough_silent", HERE / "build-video.py"
 )
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("cannot load renderer helpers")
@@ -55,22 +55,11 @@ def extract_frame(
     )
 
 
-def gate_scope(directory: Path) -> None:
-    if not (directory / "shot-list.json").exists():
-        changed = common.nul_paths(directory / "changed.paths")
-        common.require(changed, "changed.paths is empty")
-        scope = common.load_scope(directory, changed)
-        print(f"scope ok: {scope['mode']}, {len(changed)} paths, no shot list")
-        return
+def gate_shots(directory: Path) -> None:
     shot_list = common.load_shot_list(directory)
-    kinds = [item["kind"] for item in shot_list["path_coverage"]]
     print(
-        f"scope ok: {shot_list['scope']['mode']}, "
-        f"{len(shot_list['claims'])} claims, "
-        f"{len(shot_list['groups'])} groups, "
-        f"{len(shot_list['surfaces'])} surfaces, "
-        f"{len(kinds)} paths ({kinds.count('behavioral')} behavioral, "
-        f"{kinds.count('inert')} inert)"
+        f"shots ok: {len(shot_list['claims'])} claims, "
+        f"{len(shot_list['surfaces'])} surfaces"
     )
 
 
@@ -180,7 +169,7 @@ def validate_render_manifest(
 
 def gate_render(directory: Path, ffmpeg: str, ffprobe: str) -> None:
     _, workflow, _, _ = common.load_recording(directory, ffprobe)
-    output = directory / "pr-demo.mp4"
+    output = directory / "walkthrough.mp4"
     video, duration, streams = common.video_info(ffprobe, output)
     common.require(video.get("codec_name") == "h264", "render is not H.264")
     common.require(video.get("pix_fmt") == "yuv420p", "render is not yuv420p")
@@ -233,40 +222,17 @@ def gate_render(directory: Path, ffmpeg: str, ffprobe: str) -> None:
     print(f"inspect {review}/render-*.png and play every speech window")
 
 
-def gate_stills(directory: Path) -> None:
-    pairs = common.load_stills(directory)
-    print(f"stills ok: {len(pairs)} claim pairs")
-    for pair in pairs:
-        print(f"inspect {directory / pair['before']} | {directory / pair['after']}")
-
-
-def gate_runs(directory: Path) -> None:
-    runs = common.load_runs(directory)
-    print(f"runs ok: {len(runs)} red/green pairs")
-    for run in runs:
-        print(
-            f"read {directory / run['before']['log']} | "
-            f"{directory / run['after']['log']}"
-        )
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "gate", choices=("scope", "preflight", "record", "render", "stills", "runs")
-    )
+    parser.add_argument("gate", choices=("shots", "preflight", "record", "render"))
     parser.add_argument("scratch")
     args = parser.parse_args()
     directory = Path(args.scratch).resolve()
     try:
-        if args.gate == "scope":
-            gate_scope(directory)
+        if args.gate == "shots":
+            gate_shots(directory)
         elif args.gate == "preflight":
             gate_preflight(directory)
-        elif args.gate == "stills":
-            gate_stills(directory)
-        elif args.gate == "runs":
-            gate_runs(directory)
         else:
             ffmpeg = SILENT.find_ffmpeg()
             ffprobe = SILENT.find_ffprobe(ffmpeg)
@@ -280,7 +246,7 @@ def main() -> int:
         OSError,
         subprocess.CalledProcessError,
     ) as exc:
-        print(f"validate-pr: error: {exc}", file=sys.stderr)
+        print(f"validate-video: error: {exc}", file=sys.stderr)
         return 1
 
 

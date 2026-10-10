@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a validated voiced and captioned pr demo video."""
+"""Build a validated voiced and captioned walkthrough video."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import preview_common as common
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location(
-    "pr_demo_silent", HERE / "build-pr-demo.py"
+    "walkthrough_silent", HERE / "build-video.py"
 )
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("cannot load silent renderer")
@@ -31,7 +31,7 @@ class TtsFailed(RuntimeError):
 
 
 def warn(message: str) -> None:
-    print(f"build-pr-demo-with-voice: warning: {message}", file=sys.stderr)
+    print(f"build-video-with-voice: warning: {message}", file=sys.stderr)
 
 
 def run(command: list[str]) -> None:
@@ -158,7 +158,7 @@ def fallback(reason: str, directory: Path) -> int:
         SILENT.render(directory, mode="silent-fallback")
         return 0
     except (common.PreviewError, subprocess.CalledProcessError) as exc:
-        print(f"build-pr-demo-with-voice: error: {exc}", file=sys.stderr)
+        print(f"build-video-with-voice: error: {exc}", file=sys.stderr)
         return 1
 
 
@@ -185,7 +185,7 @@ def main() -> int:
         ffprobe = SILENT.find_ffprobe(ffmpeg)
         _, workflow, webm, _ = common.load_recording(directory, ffprobe)
     except common.PreviewError as exc:
-        print(f"build-pr-demo-with-voice: error: {exc}", file=sys.stderr)
+        print(f"build-video-with-voice: error: {exc}", file=sys.stderr)
         return 1
 
     unsupported = common.voice_unsupported()
@@ -223,7 +223,7 @@ def main() -> int:
         narration = voice_dir / "narration.wav"
         master_audio(ffmpeg, beat_wavs, items, narration)
 
-        output = directory / "pr-demo.mp4"
+        output = directory / "walkthrough.mp4"
         subprocess.run(
             [
                 ffmpeg,

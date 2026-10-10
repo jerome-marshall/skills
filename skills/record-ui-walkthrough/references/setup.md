@@ -1,16 +1,15 @@
 # Kit setup
 
-Each tool is probed where it is first needed, so a run only checks what its
-evidence uses:
+Each tool is probed where it is first needed, so a run only checks what it
+uses:
 
 | Need | When | Probes |
 | --- | --- | --- |
-| `capture` | first still or video | Playwright CLI + Chromium |
-| `video` | a video was chosen | ffmpeg with libass, voice stack |
-| `publish` | Publish | GitHub CLI |
+| `capture` | before exploring | Playwright CLI + Chromium |
+| `video` | before rendering | ffmpeg with libass, voice stack |
 
 ```bash
-python3 ~/.agents/skills/pr/scripts/check-kit.py <need> [<need> ...]
+python3 ~/.agents/skills/record-ui-walkthrough/scripts/check-kit.py <need> [<need> ...]
 ```
 
 The JSON report caches a successful Chromium launch by Playwright CLI path and
@@ -18,24 +17,13 @@ version; use `--refresh` after repairing Chromium. `requiredReady: true`
 completes the probe. Voice is optional. Use only the failed section below for
 remediation, then rerun the probe.
 
-## GitHub CLI
-
-```bash
-GH_VERSION=$(gh --version | awk 'NR==1 { print $3 }')
-python3 -c 'import sys; v=tuple(map(int,sys.argv[1].split("."))); assert v >= (2,100,0), f"gh {sys.argv[1]} is older than 2.100.0"' "$GH_VERSION"
-gh auth status
-```
-
-Missing: install via `brew install gh`, then `gh auth login`.
-Done when: the comparison passes and auth reports logged in.
-
 ## Playwright CLI + Chromium
 
 ```bash
 command -v playwright-cli
 playwright-cli --version
-playwright-cli -s=pr-kit open about:blank
-playwright-cli -s=pr-kit close
+playwright-cli -s=walkthrough-kit open about:blank
+playwright-cli -s=walkthrough-kit close
 ```
 
 Missing binary: stop and ask; a one-off `npx --version` is not a reusable
@@ -49,7 +37,7 @@ Captions need an ffmpeg built with libass (`subtitles` filter). Ask the
 same finder render uses (PATH, then common full builds):
 
 ```bash
-python3 ~/.agents/skills/pr/scripts/build-pr-demo.py --print-ffmpeg
+python3 ~/.agents/skills/record-ui-walkthrough/scripts/build-video.py --print-ffmpeg
 ```
 
 Missing: install such an ffmpeg — Homebrew `brew install ffmpeg-full`; on
@@ -94,7 +82,7 @@ spaCy's English model, about 20s):
 
 ```bash
 printf '["Voice kit ready."]' >"$TMPDIR/voice-check.json"
-"$PR_DEMO_TTS_VENV/bin/python" ~/.agents/skills/pr/scripts/kokoro-tts.py \
+"$PR_DEMO_TTS_VENV/bin/python" ~/.agents/skills/record-ui-walkthrough/scripts/kokoro-tts.py \
   "$PR_DEMO_TTS_MODELS" "$TMPDIR/voice-check.json" "$TMPDIR/voice-check"
 ```
 

@@ -1,6 +1,6 @@
 # CLI session
 
-Same `playwright-cli` binary the `capture` probe checked. Prefix every call with `-s=pr`.
+Same `playwright-cli` binary the `capture` probe checked. Prefix every call with `-s=walkthrough`.
 Command names live in `playwright-cli --help`; this file carries the
 conventions `--help` does not.
 
@@ -35,14 +35,14 @@ Each `playwright-cli` invocation assigns `SCRATCH` and exports
 `--filename` values are `$SCRATCH/...`.
 
 ```bash
-SCRATCH="${TMPDIR:-/tmp}/pr-<branch>"
+SCRATCH=<the scratch dir from SKILL.md>
 export PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS=1
-playwright-cli -s=pr open --config="$SCRATCH/cli.config.json" "$URL"
-playwright-cli -s=pr resize 1280 800
+playwright-cli -s=walkthrough open --config="$SCRATCH/cli.config.json" "$URL"
+playwright-cli -s=walkthrough resize 1280 800
 ```
 
 Resize when the window does not match the viewport. Close with
-`playwright-cli -s=pr close`.
+`playwright-cli -s=walkthrough close`.
 
 ## Explore
 
@@ -53,13 +53,11 @@ Routing, login, and row-picking stay CLI. After the first snapshot, prefer:
 - `snapshot --filename=$SCRATCH/tree.yml` when the full tree belongs on disk
 - `--raw` on `click` / `fill` / `press` once the target is known
 - `click "getByRole('button', { name: 'Submit' })"` when the name is known
-- `eval` for [claim](before-after.md) fingerprints; `eval --filename` for
+- `eval` for [served](../SKILL.md#served) fingerprints; `eval --filename` for
   large results
-- `screenshot --filename=$SCRATCH/<slug>-after.png` — viewport, same
-  1280×800 as the screencast
 
 A full in-chat snapshot is for a small surface. For each hero beat,
-`playwright-cli -s=pr --raw generate-locator eN` — those locators go
+`playwright-cli -s=walkthrough --raw generate-locator eN` — those locators go
 in the hero; snapshot refs expire.
 
 ## Preflight
@@ -67,14 +65,14 @@ in the hero; snapshot refs expire.
 Run the generated dry-run before the hero:
 
 ```bash
-playwright-cli -s=pr --raw run-code \
+playwright-cli -s=walkthrough --raw run-code \
   --filename="$SCRATCH/preflight.js" >"$SCRATCH/preflight.json"
 python3 -m json.tool "$SCRATCH/preflight.json" >/dev/null
-python3 ~/.agents/skills/pr/scripts/validate-pr.py preflight "$SCRATCH"
+python3 ~/.agents/skills/record-ui-walkthrough/scripts/validate-video.py preflight "$SCRATCH"
 rm -rf "$SCRATCH/video"
 ```
 
-The preflight reaches every representative surface with the same routes,
+The preflight reaches every shot-list surface with the same routes,
 setup actions, locators, and claim measurements as `hero.js`. It also clears a
 stale screencast and proves that a new screencast can start and stop.
 
@@ -82,7 +80,7 @@ stale screencast and proves that a new screencast can start and stop.
 
 Write `$SCRATCH/hero.js` with Python (or a heredoc that already contains the
 expanded `$SCRATCH` path). `path` is the absolute
-`$SCRATCH/video/pr-demo.webm` string. Confirm `hero.js` contains a path under
+`$SCRATCH/video/walkthrough.webm` string. Confirm `hero.js` contains a path under
 `$TMPDIR` before `run-code`. Waits inside `run-code` are
 `page.waitForTimeout`. The hero uses only its `page` parameter. Navigate that
 page to every shot-list surface after capture starts; pages opened during
@@ -96,7 +94,7 @@ async page => {
   const now = () => (Date.now() - t0) / 1000;
   try {
     await page.screencast.start({
-      path: "/abs/scratch/video/pr-demo.webm",
+      path: "/abs/scratch/video/walkthrough.webm",
       size: { width: 1280, height: 800 }
     });
     recording = true;
@@ -114,15 +112,15 @@ async page => {
     if (recording) await page.screencast.stop();
   }
   return {
-    pr: "stable-preview-id",
-    title: "Preview title",
+    id: "stable-walkthrough-id",
+    title: "Walkthrough title",
     steps
   };
 }
 ```
 
 ```bash
-playwright-cli -s=pr --raw run-code \
+playwright-cli -s=walkthrough --raw run-code \
   --filename="$SCRATCH/hero.js" >"$SCRATCH/workflow.json"
 python3 -m json.tool "$SCRATCH/workflow.json" >/dev/null
 ```

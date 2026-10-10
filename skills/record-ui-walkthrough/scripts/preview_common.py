@@ -1,10 +1,9 @@
-"""Shared manifest, media, and timeline validation for the pr skill."""
+"""Shared manifest, media, and timeline validation for record-ui-walkthrough."""
 
 from __future__ import annotations
 
 import json
 import math
-import os
 import platform
 import re
 import subprocess
@@ -50,7 +49,7 @@ def voice_unsupported() -> str | None:
 
 
 class PreviewError(ValueError):
-    """An invalid preview artifact."""
+    """An invalid walkthrough artifact."""
 
 
 def require(condition: bool, message: str) -> None:
@@ -88,63 +87,11 @@ def number(value: Any, label: str) -> float:
     return float(value)
 
 
-def nul_paths(path: Path) -> set[str]:
-    try:
-        parts = path.read_bytes().split(b"\0")
-    except OSError as exc:
-        raise PreviewError(f"{path}: {exc}") from exc
-    return {os.fsdecode(part) for part in parts if part}
-
-
-def load_scope(directory: Path, changed_paths: set[str]) -> dict[str, Any]:
-    scope = read_json(directory / "scope.json")
-    mode = nonempty(scope.get("mode"), "scope.mode")
-    require(
-        mode in {"stash", "branch", "sidecar", "pinned"},
-        f"scope.mode: invalid mode {mode}",
-    )
-    nonempty(scope.get("default"), "scope.default")
-    default_ref = nonempty(scope.get("defaultRef"), "scope.defaultRef")
-    require(
-        default_ref.startswith("refs/remotes/"),
-        "scope.defaultRef must be a normalized remote ref",
-    )
-    dirty_paths = nul_paths(directory / "dirty.paths")
-    if mode == "stash":
-        require(dirty_paths == changed_paths, "stash changed paths must equal dirty paths")
-    elif mode == "branch":
-        require(not dirty_paths, "branch mode requires a clean tree")
-    elif mode == "sidecar":
-        require(bool(dirty_paths), "sidecar mode requires dirty paths")
-        require(
-            dirty_paths.isdisjoint(changed_paths),
-            "sidecar dirty paths overlap the committed range",
-        )
-    else:
-        preview_tree = Path(
-            nonempty(scope.get("previewTree"), "scope.previewTree")
-        ).resolve()
-        require(preview_tree.is_dir(), f"pinned preview tree is missing: {preview_tree}")
-        branch = identifier(scope.get("previewBranch"), "scope.previewBranch")
-        require("/" not in branch, "pinned preview branch cannot contain '/'")
-    return scope
-
-
 def load_shot_list(directory: Path) -> dict[str, Any]:
     manifest = read_json(directory / "shot-list.json")
     claims = manifest.get("claims")
-    groups = manifest.get("groups")
-    path_coverage = manifest.get("pathCoverage")
     surfaces = manifest.get("surfaces")
     require(isinstance(claims, list) and claims, "shot-list.json: claims is empty")
-    require(
-        isinstance(groups, list) and groups,
-        "shot-list.json: groups is empty",
-    )
-    require(
-        isinstance(path_coverage, list) and path_coverage,
-        "shot-list.json: pathCoverage is empty",
-    )
     require(
         isinstance(surfaces, list) and surfaces,
         "shot-list.json: surfaces is empty",
@@ -158,75 +105,8 @@ def load_shot_list(directory: Path) -> dict[str, Any]:
         nonempty(claim.get("description"), f"claims[{index}].description")
         claim_map[claim_id] = claim
 
-    group_map: dict[str, dict[str, Any]] = {}
-    grouped_claims: set[str] = set()
-    for index, group in enumerate(groups):
-        require(isinstance(group, dict), f"groups[{index}]: expected object")
-        group_id = identifier(group.get("id"), f"groups[{index}].id")
-        require(group_id not in group_map, f"duplicate group id: {group_id}")
-        claim_id = identifier(group.get("claim"), f"groups[{index}].claim")
-        require(claim_id in claim_map, f"{group_id}: unknown claim {claim_id}")
-        nonempty(group.get("description"), f"groups[{index}].description")
-        group_map[group_id] = group
-        grouped_claims.add(claim_id)
-    require(
-        grouped_claims == set(claim_map),
-        "claims without groups: " + repr(sorted(set(claim_map) - grouped_claims)),
-    )
-
-    changed_paths = nul_paths(directory / "changed.paths")
-    require(changed_paths, "changed.paths is empty")
-    covered_paths: set[str] = set()
-    path_groups: set[str] = set()
-    for index, item in enumerate(path_coverage):
-        require(isinstance(item, dict), f"pathCoverage[{index}]: expected object")
-        path = nonempty(item.get("path"), f"pathCoverage[{index}].path")
-        require(path not in covered_paths, f"duplicate pathCoverage path: {path}")
-        covered_paths.add(path)
-        kind = nonempty(item.get("kind"), f"pathCoverage[{index}].kind")
-        require(
-            kind in {"visual", "behavioral", "inert"},
-            f"pathCoverage[{index}].kind: invalid value {kind}",
-        )
-        item_groups = item.get("groups")
-        if kind == "visual":
-            require(
-                isinstance(item_groups, list) and item_groups,
-                f"pathCoverage[{index}].groups is empty",
-            )
-            seen_item_groups: set[str] = set()
-            for group_index, value in enumerate(item_groups):
-                group_id = identifier(
-                    value, f"pathCoverage[{index}].groups[{group_index}]"
-                )
-                require(group_id in group_map, f"{path}: unknown group {group_id}")
-                require(
-                    group_id not in seen_item_groups,
-                    f"{path}: duplicate group {group_id}",
-                )
-                seen_item_groups.add(group_id)
-                path_groups.add(group_id)
-        else:
-            require(
-                item_groups in (None, []),
-                f"{path}: {kind} path cannot name groups",
-            )
-            nonempty(item.get("reason"), f"pathCoverage[{index}].reason")
-
-    require(
-        covered_paths == changed_paths,
-        "shot-list path mismatch; missing="
-        + repr(sorted(changed_paths - covered_paths))
-        + " extra="
-        + repr(sorted(covered_paths - changed_paths)),
-    )
-    require(
-        path_groups == set(group_map),
-        "groups without visual paths: " + repr(sorted(set(group_map) - path_groups)),
-    )
-
     surface_map: dict[str, dict[str, Any]] = {}
-    surfaced_groups: set[str] = set()
+    surfaced_claims: set[str] = set()
     for index, surface in enumerate(surfaces):
         require(isinstance(surface, dict), f"surfaces[{index}]: expected object")
         surface_id = identifier(surface.get("id"), f"surfaces[{index}].id")
@@ -234,41 +114,18 @@ def load_shot_list(directory: Path) -> dict[str, Any]:
         nonempty(surface.get("name"), f"surfaces[{index}].name")
         claim_id = identifier(surface.get("claim"), f"surfaces[{index}].claim")
         require(claim_id in claim_map, f"{surface_id}: unknown claim {claim_id}")
-        surface_groups = surface.get("groups")
-        require(
-            isinstance(surface_groups, list) and surface_groups,
-            f"{surface_id}: groups is empty",
-        )
-        seen_surface_groups: set[str] = set()
-        for group_index, value in enumerate(surface_groups):
-            group_id = identifier(value, f"{surface_id}.groups[{group_index}]")
-            require(group_id in group_map, f"{surface_id}: unknown group {group_id}")
-            require(
-                group_map[group_id]["claim"] == claim_id,
-                f"{surface_id}: group {group_id} has a different claim",
-            )
-            require(
-                group_id not in seen_surface_groups,
-                f"{surface_id}: duplicate group {group_id}",
-            )
-            seen_surface_groups.add(group_id)
-            surfaced_groups.add(group_id)
         surface_map[surface_id] = surface
+        surfaced_claims.add(claim_id)
 
     require(
-        surfaced_groups == set(group_map),
-        "groups without representative surfaces: "
-        + repr(sorted(set(group_map) - surfaced_groups)),
+        surfaced_claims == set(claim_map),
+        "claims without surfaces: "
+        + repr(sorted(set(claim_map) - surfaced_claims)),
     )
-    scope = load_scope(directory, changed_paths)
     return {
         "raw": manifest,
         "claims": claim_map,
-        "groups": group_map,
-        "path_coverage": path_coverage,
         "surfaces": surface_map,
-        "changed_paths": changed_paths,
-        "scope": scope,
     }
 
 
@@ -383,21 +240,6 @@ def video_info(ffprobe: str, media: Path) -> tuple[dict[str, Any], float, list[d
     return videos[0], duration, streams
 
 
-def png_size(media: Path) -> tuple[int, int]:
-    try:
-        with media.open("rb") as handle:
-            header = handle.read(24)
-    except OSError as exc:
-        raise PreviewError(f"{media}: {exc}") from exc
-    require(
-        len(header) == 24
-        and header[:8] == b"\x89PNG\r\n\x1a\n"
-        and header[12:16] == b"IHDR",
-        f"{media}: expected a PNG",
-    )
-    return int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")
-
-
 def load_recording(
     directory: Path, ffprobe: str
 ) -> tuple[dict[str, Any], dict[str, Any], Path, float]:
@@ -411,7 +253,7 @@ def load_recording(
     )
 
     workflow = read_json(directory / "workflow.json")
-    nonempty(workflow.get("pr"), "workflow.pr")
+    nonempty(workflow.get("id"), "workflow.id")
     nonempty(workflow.get("title"), "workflow.title")
     steps = workflow.get("steps")
     require(isinstance(steps, list) and steps, "workflow.steps is empty")
@@ -518,72 +360,3 @@ def write_render_review(
         )
         + "\n"
     )
-
-
-def load_stills(directory: Path) -> list[dict[str, Any]]:
-    shot_list = load_shot_list(directory)
-    manifest = read_json(directory / "stills.json")
-    pairs = manifest.get("pairs")
-    require(isinstance(pairs, list) and pairs, "stills.pairs is empty")
-    seen: set[str] = set()
-    for index, pair in enumerate(pairs):
-        require(isinstance(pair, dict), f"pairs[{index}]: expected object")
-        claim = identifier(pair.get("claim"), f"pairs[{index}].claim")
-        require(claim in shot_list["claims"], f"pairs[{index}]: unknown claim")
-        require(claim not in seen, f"duplicate still pair for claim {claim}")
-        seen.add(claim)
-        for state in ("before", "after"):
-            filename = nonempty(pair.get(state), f"pairs[{index}].{state}")
-            path = (directory / filename).resolve()
-            require(
-                path.is_relative_to(directory.resolve()),
-                f"pairs[{index}].{state}: path leaves scratch",
-            )
-            require(path.is_file(), f"missing still: {path}")
-            require(
-                png_size(path) == (VIEW_W, VIEW_H),
-                f"{path}: expected {VIEW_W}x{VIEW_H}",
-            )
-    require(seen == set(shot_list["claims"]), "stills must cover every claim once")
-    return pairs
-
-
-def load_runs(directory: Path) -> list[dict[str, Any]]:
-    manifest = read_json(directory / "runs.json")
-    runs = manifest.get("runs")
-    require(isinstance(runs, list) and runs, "runs.json: runs is empty")
-    seen: set[str] = set()
-    for index, run in enumerate(runs):
-        label = f"runs[{index}]"
-        require(isinstance(run, dict), f"{label}: expected object")
-        claim = identifier(run.get("claim"), f"{label}.claim")
-        require(claim not in seen, f"duplicate run for claim {claim}")
-        seen.add(claim)
-        nonempty(run.get("description"), f"{label}.description")
-        nonempty(run.get("command"), f"{label}.command")
-        kind = nonempty(run.get("kind"), f"{label}.kind")
-        require(kind in {"test", "output"}, f"{label}.kind: invalid value {kind}")
-        logs: dict[str, bytes] = {}
-        exits: dict[str, int] = {}
-        for state in ("before", "after"):
-            side = run.get(state)
-            require(isinstance(side, dict), f"{label}.{state}: expected object")
-            path = (directory / nonempty(side.get("log"), f"{label}.{state}.log")).resolve()
-            require(
-                path.is_relative_to(directory.resolve()),
-                f"{label}.{state}.log: path leaves scratch",
-            )
-            require(path.is_file(), f"missing log: {path}")
-            logs[state] = path.read_bytes()
-            exit_path = path.with_suffix(".exit")
-            try:
-                exits[state] = int(exit_path.read_text().strip())
-            except (OSError, ValueError) as exc:
-                raise PreviewError(f"{exit_path}: expected an exit code") from exc
-        if kind == "test":
-            require(exits["before"] != 0, f"{claim}: test is not red on the before tree")
-            require(exits["after"] == 0, f"{claim}: test is not green on the after tree")
-        else:
-            require(exits["after"] == 0, f"{claim}: command failed on the after tree")
-            require(logs["before"] != logs["after"], f"{claim}: before and after output match")
-    return runs

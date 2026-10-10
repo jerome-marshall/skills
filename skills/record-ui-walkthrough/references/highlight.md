@@ -28,8 +28,8 @@ async function highlight(locator: Locator, color = "#0ea5e9", walk = true) {
     const controlsIn = (root: ParentNode) =>
       [...root.querySelectorAll(CONTROL)] as HTMLElement[];
     const paint = (best: HTMLElement) => {
-      if (!best.dataset.prDemoHl) {
-        best.dataset.prDemoHl = JSON.stringify({
+      if (!best.dataset.walkthroughHl) {
+        best.dataset.walkthroughHl = JSON.stringify({
           outline: best.style.outline,
           outlineOffset: best.style.outlineOffset,
         });
@@ -160,7 +160,7 @@ async function highlightRelation(page, a, b, options = {}) {
 ```
 
 Store the returned object as the workflow beat's `paint`; its `distance` is
-the served spacing fingerprint. A caption
+the [served](../SKILL.md#served) spacing fingerprint. A caption
 which says “below” uses `axis: "vertical", order: "a-before-b"`; a caption
 which says “beside” uses the horizontal equivalent. The review frame must show
 that the overlay touches both named anchors and no unrelated region.
@@ -180,12 +180,12 @@ Region captions resolve the locator below, then `highlightRegion`:
 async function clearHighlights(page: Page) {
   try {
     await page.evaluate(() => {
-      document.querySelectorAll("[data-pr-demo-hl]").forEach((n) => {
+      document.querySelectorAll("[data-walkthrough-hl]").forEach((n) => {
         const e = n as HTMLElement;
-        const previous = JSON.parse(e.dataset.prDemoHl || "{}");
+        const previous = JSON.parse(e.dataset.walkthroughHl || "{}");
         e.style.outline = previous.outline || "";
         e.style.outlineOffset = previous.outlineOffset || "";
-        delete e.dataset.prDemoHl;
+        delete e.dataset.walkthroughHl;
       });
     });
   } finally {
@@ -196,7 +196,7 @@ async function clearHighlights(page: Page) {
 ```
 
 `clearHighlights` restores the exact prior node styles and disposes every
-overlay. The hero calls it in `finally`; stills use a fresh page regardless.
+overlay. The hero calls it in `finally`.
 
 ## Style
 

@@ -1,220 +1,110 @@
 ---
 name: pr
-description: "Writes a PR body that's fast to review, with before/after proof. Use when writing or opening a PR, or when capturing screenshots or a demo video of a UI change."
+description: "Opens or updates a GitHub pull request as a draft, with a body that's fast to review and proof that the change works. Use whenever opening or updating a PR, deciding whether work should be one PR, separate PRs or a stack, or handing PR work to parallel agents. GitHub only, through `gh`."
 ---
 
-Write a PR body a reviewer takes in at a glance: the shape of the change, proof that it works, and how dangerous it is to merge. Gather the proof yourself and publish only after the user approves.
+Turn committed work into a **draft** PR a reviewer trusts in under a minute: what changed, proof it works, and how risky it is to merge. The draft is the gate: the human marks it ready, so you open it and stop.
 
-Work in a scratch dir outside the repo: `SCRATCH="${TMPDIR:-/tmp}/pr-<branch>"`. Skill files live at `~/.agents/skills/pr/`; expand `references/` and `scripts/` from there, not from the app repo.
+The skill starts once the code is committed and ends at a published draft. Scratch lives outside the repo: `SCRATCH="${TMPDIR:-/tmp}/pr-<branch>"`. Screenshots and logs stay there, off the branch, and are kept after upload so revisions can reuse them.
 
 ## Steps
 
-1. **Scope.** Fix the change range, snapshot the tree, and pick the before-tree mode (stash, branch, sidecar, or pinned) per [before-after](references/before-after.md#which-path). Classify every path in `changed.paths` as one kind:
-   - **visual** — changes rendered UI;
-   - **behavioral** — changes runtime behavior without changing pixels (API, logic, data, types that alter behavior);
-   - **inert** — cannot change runtime behavior (docs, comments, formatting, renames with no references).
+1. **Shape.** Decide how many PRs this work becomes and each one's base, per [Shape](#shape). Done when every change belongs to exactly one PR and each PR has a base.
+2. **Claims.** Read the diff GitHub will show (`git diff origin/<base>...HEAD`) and write each change as a **claim**: one sentence a reviewer could check by looking or running. Done when every changed file sits under a claim or is named in the Scope line.
+3. **Proof.** Prove each claim with the lowest rung of the [proof ladder](#proof-ladder) that carries it. Done when every claim has its proof or a "Not verified: <why>" line.
+4. **Body.** Write `$SCRATCH/body.md` and a title, per [Body](#body). Done when every claim appears in Evidence and every referenced file exists.
+5. **Publish.** Push and open or update the draft, per [Publish](#publish). Done when the read-back passes.
+6. **Report.** Post the PR URL, one line on what was proved and one on what wasn't, then stop. A helper under an orchestrator reports per [delegate](references/delegate.md#report).
 
-   Write each visual or behavioral change as a **claim**: one sentence a reviewer could check by looking or running. With visual paths, record kinds, claims, and representative surfaces in the shot list per [coverage](references/before-after.md#coverage).
-   Done when: every changed path has a kind, every visual and behavioral path belongs to a claim, and the scope gate passes.
+## Shape
 
-2. **Evidence.** Prove every claim with the smallest proof that carries it.
-   - **Visual** — stills: one before/after pair per claim, served from a fingerprinted dev URL, per [claim](references/before-after.md#claim). Add a video only when the claim holds through interaction, motion, or a sequence; record it on the after tree before the stills, per [recording](references/recording.md).
-   - **Behavioral** — a run that goes **red** on the before tree and **green** on the after tree, per [runs](references/before-after.md#runs). Use the narrowest existing test; when none covers the claim, use command output that shows it.
-   - **Inert** — no proof; Evidence says so in one line.
+Ask of each change: **would this build, pass CI and make sense if it were the only thing merged into main?**
 
-   Stills and runs share one before-tree [window](references/before-after.md#window): materialize the before tree once, capture everything, restore. Probe tools where they are first needed, per [setup](references/setup.md).
-   Done when: every visual claim has a validated still pair (and a validated render when a video was chosen), every behavioral claim has a validated red/green pair, and the user's tree matches its Scope snapshot. A gate exiting zero is where inspection starts: open what it lists, and a mismatch returns to the capture to repair, regenerate, and rerun.
+- Yes, and it's one change: one PR on the default branch.
+- Yes, and there are several unrelated changes: one PR each, every one on the default branch, each in its own worktree, even when built in parallel.
+- No, it needs another open PR's code: a stack, one concern per layer, foundation at the bottom, built with the `gh-stack` skill.
+- Unrelated fixes that touch the same lines: one combined PR, or a stack whose body says the dependency is textual.
 
-3. **Draft.** Write `$SCRATCH/body.md` from the [template](#template) and a title per [Title](#title). Reference media by absolute `$SCRATCH` path: chat renders those during Review, and `gh --attach` rewrites them on Publish.
-   Done when: every claim appears in Evidence, every referenced file exists, and anything uncertain is marked rather than invented.
+Why chaining unrelated fixes hurts, and stack layers in worktrees: [stacks](references/stacks.md). Handing PRs to parallel helpers: [delegate](references/delegate.md). Branch names follow the repo's and the user's conventions.
 
-4. **Review.** Present the draft per [review](references/publish.md#review) and stop. Each revision returns to the step it touches and reruns that step's gate before presenting again.
-   Done when: the user gives one explicit go-ahead covering commit, push, and PR, or declines.
+**Base** is the PR's real base: `gh pr view --json baseRefName`; with no PR yet, the nearest unmerged branch below in the stack, else the default branch. An orchestrator's handoff names it. **Before** is `git merge-base HEAD origin/<base>` after fetching the base, the same three-dot diff GitHub shows reviewers.
 
-5. **Publish.** Commit, push, and create or update the PR per [publish](references/publish.md#publish).
-   Done when: the remote PR body shows every image and video as a remote asset, or the declined path has cleaned up.
+## Proof ladder
 
-## Title
+Each row adds to the rows above only when the change really is that kind.
 
-Conventional Commits: `type(scope): summary`, scope optional. Types: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `style`, `build`, `ci`. The commit made on Publish uses the same line.
+| Change | Minimum proof |
+| --- | --- |
+| No runtime change (docs, comments, rename) | One line saying why. CI green. |
+| Refactor that keeps behavior | The covering tests by name, plus "no test files changed" or the list of test edits. |
+| Visual tweak | One before/after screenshot pair, with route and action. After-only for brand-new UI. A second viewport only if responsive rules changed. |
+| Bug fix or logic change | A test that goes **red** with the fix reverted and **green** with it. Revert only the source files and keep the new test. No test harness: real command output before and after. |
+| Feature without UI interaction | New tests plus one real run (curl, CLI) with its output. |
+| Interaction, motion, multi-step flow | Stills of the key states plus one short video, made with the `record-ui-walkthrough` skill, only because a still can't show it. |
+| Sensitive area (auth, secrets, CI, weakened tests) | The above, plus a note on what could go wrong and what was checked. |
+| One-way door (migration, data, public contract) | Migrate and rollback output, affected rows, a recovery plan, and the Hard to undo line in [Body](#body). |
 
-## Template
+At every rung: proof comes from the head being merged, so rerun it after a rebase. Name what you didn't verify ("Not verified: Safari"). List every deleted, skipped or weakened test.
+
+**Running the app** is the repo's business. Use what it documents (a verify skill, `AGENTS.md`, README, its scripts); with nothing documented, work it out and say in Evidence how you ran it. **Ready** means you can observe the change: the changed element on the page, the new behavior from the service or CLI. A startup log line or an HTTP 200 is not ready. Keep long-running processes alive with your harness's background mode or tmux, and stop only what you started.
+
+**Capturing before.** Keep the app running. Revert the changed source files in place, let the app reload, capture, then restore and check `git status` matches where you started:
+
+```bash
+git restore --source="$(git merge-base HEAD origin/<base>)" --worktree -- <source files>
+git restore --source=HEAD --worktree -- <source files>
+```
+
+Use a separate worktree of the base only when the in-place revert can't work (no reload, generated code, schema changes).
+
+**Screenshots.** Use `agent-browser` if it's installed, otherwise whatever browser automation is available, at the viewport the claim needs.
+
+- Always a full-viewport before/after pair, scrolled so the change and its surroundings are in view. Add a zoomed pair of the changed area when the change is small relative to the page; capture the full page only when its shape changed.
+- Leave subtle changes (gap, alignment, color) unpainted. For a discrete element, draw a thin outline set slightly off it, on the shot where the element exists. Skip arrows and text callouts.
+- Use demo or test data. Open every image before upload and retake any that shows secrets or personal data.
+
+## Body
+
+**Template first.** If the repo has a PR template (`.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE/`, `docs/` or the root), fill it. Its required fields (ticket, change type, checklists) stay at the top word for word. Add a section below only where the template has nothing similar. With no template:
 
 ```markdown
 ## Summary
-
-<diagram, diff-sketch, or tree>
+<What changed and why, 1–3 sentences. Ticket link.>
+**Scope:** <what this covers; what it deliberately leaves out>
 
 ## Evidence
+- **<claim>**: <live UI | test red→green | command output | not verified: why>
 
-- **Before:** <screenshot/output/failing test run>
-  **After:** <screenshot/output/passing test run>
-
-## Merge Danger
-
-**Door:** <one-way or two-way>
-
-<optional: description>
-
-**Blast Radius:** <one-word description>
-
-<optional: potential ramifications of merge>
+## Blast Radius
+**Door:** <two-way: a revert undoes it | one-way: why>
+**Reaches:** <what could break, and who consumes it>
+**Look at:** <one or two places to read first>
+**Tests/CI changed:** <none | list>
+**Not verified:** <none | list>
 ```
 
-Skip all preambles and keep prose brief.
+Write a briefing, about 40 lines at most. A rejected alternative a reviewer would ask about gets one sentence in Summary. An optional visual (diff sketch, call tree, diagram) goes in Summary, per [summary](references/summary.md). In Evidence, lead each screenshot pair with its claim, route and action, then a two-column Before | After table. A video sits in its own paragraph (`![](/abs/scratch/walkthrough.mp4)`) so GitHub renders a player. A red/green test shows the command, then what failed before and passes now.
 
-### Summary
+These lines go at the very top of the body when they apply:
 
-Pick the smallest view that makes the key point clear.
+- A hard-to-undo change: "Hard to undo: <why>. Needs an owner's review before ready."
+- The app couldn't run: "Not verified: live UI, <reason>." Open the draft anyway with the strongest proof you have.
+- A judgment call you couldn't settle: one short question for the reviewer.
 
-- Show logic or an algorithm as pseudocode:
+**Updating a PR.** Keep text a human wrote and work it in; replace only placeholders and what an agent wrote. After new commits, rewrite the body to describe the current head and rerun proof only for the claims those commits touch.
 
-```text
-on(save)
-  if content is unchanged
-    return cached result
-  write new content
-  return fresh result
+**Title** follows the repo's convention, read from recent merged titles (`gh pr list --state merged --limit 15 --json title`). Include a ticket key only when the branch or commits name one and the convention uses keys.
+
+## Publish
+
+```bash
+git push -u origin HEAD
+gh pr create --draft --base <base> --title "<title>" --body-file "$SCRATCH/body.md" \
+  --attach "$SCRATCH/<slug>-before.png" --attach "$SCRATCH/<slug>-after.png"
+gh pr edit <number> --title "<title>" --body-file "$SCRATCH/body.md" --attach ...   # existing PR
+gh pr view <number> --json isDraft,body
 ```
 
-- Show runtime control flow as a call tree:
+`--attach` uploads each file and rewrites the matching local path in the body; pass one per file, with the same absolute path the body uses. A partial upload failure still creates or updates the PR and exits nonzero, so repair it with `gh pr edit`. The read-back passes when a new PR is a draft and the body has no local paths left (`/tmp/`, `/var/folders/`, `/Users/`, `/home/`).
 
-```text
-submitForm
-  createSession
-    persistPrompt
-    launchAgent
-  navigateToSession
-```
-
-- Show UI structure as a component tree, including state and module boundaries that matter:
-
-```text
-<SessionPage> (apps/example/src/routes/session.tsx)
-  useSessionEvents()
-  <SessionToolbar>
-    <RunSkillButton> (packages/ui)
-```
-
-- Show file responsibility or a broad refactor as a shallow file tree:
-
-```text
-src/
-├── commands/       # parses user actions
-├── sessions/       # owns session state
-└── transport/      # sends API requests
-```
-
-- Show component interaction, control flow, or data flow with Mermaid:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant UI
-    participant Daemon
-    User->>UI: choose command
-    UI->>Daemon: send expanded prompt
-    Daemon-->>UI: stream result
-```
-
-- Use `diff` when the point is what changes and the surrounding shape already exists. Match the diff shape to the topic.
-
-For a component change:
-
-```diff
- <SessionPage>
-   useSessionEvents()
-   <SessionToolbar>
-+    <RunSkillButton />
-   <SessionTimeline>
-+    <SkillResultCard />
-```
-
-For a file-layout change:
-
-```diff
- src/
- ├── commands/
-+│   └── show-me.ts       # expands the slash command
- ├── sessions/
--└── transport.ts
-+└── transport/
-+    ├── client.ts
-+    └── stream.ts
-```
-
-For a call-tree or call-stack change:
-
-```diff
- submitForm
-   createSession
-     persistPrompt
-+    expandSkillMention
-     launchAgent
--  navigateToSession
-+  navigateToSession
-+    subscribeToEvents
-```
-
-For a state or control-flow change:
-
-```diff
- on(save)
--  write content
-+  if content is unchanged
-+    return cached result
-+  write new content
-+  invalidate cache
-```
-
-- Show the whole block when most of it is new, when omitted context would hide ownership or order, or when the user needs a copyable target shape:
-
-```ts
-function expandSkill(command: string): string {
-  const skillName = command.slice(1);
-  return `use the ${skillName} skill`;
-}
-```
-
-#### Guidance
-
-Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to make the change's point.
-
-You may use one of these, you may use several, it is unlikely you will use all of them. Use your judgement and don't overwhelm the reviewer.
-
-### Evidence
-
-Concrete evidence that the change works. Show a before and after for every claim.
-
-Screenshots are S-tier for visual claims. Lead each pair with the claim and one line naming the route and action that reach it:
-
-```markdown
-**<claim>** — <route>, <action>
-
-| Before | After |
-| --- | --- |
-| ![before](/abs/scratch/<slug>-before.png) | ![after](/abs/scratch/<slug>-after.png) |
-```
-
-A video sits in its own paragraph so GitHub renders a player:
-
-```markdown
-![](/abs/scratch/pr-demo.mp4)
-```
-
-Execution-based evidence is A-tier: test results, console output. Show the exact test that failed on the before tree and passes on the after tree, using pseudocode:
-
-```markdown
-**<claim>** — `<command>`
-
-- **Before:** fails — <pseudocode of the assertion and what came back>
-  **After:** passes
-```
-
-An inert-only change gets one line: `No runtime change: <why>.`
-
-### Merge Danger
-
-Describe whether it's a one-way or two-way door. You can walk back through two-way doors, but not one-way doors. A PR that is cheap to roll back is lower risk. Changes that involve destructive actions or hard-to-reverse decisions are one-way doors.
-
-The blast radius is the potential impact or scope of the changes introduced by this PR. Consider all possibilities. Examples are layout shift, breakages for consumers, mobile responsiveness, etc.
+An existing PR keeps whatever draft or ready state it has. Marking ready, CI and review comments belong to the human or a separate step, so the run ends here.

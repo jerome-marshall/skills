@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a validated silent, captioned pr demo video."""
+"""Build a validated silent, captioned walkthrough video."""
 
 from __future__ import annotations
 
@@ -179,7 +179,7 @@ def render(directory: Path, mode: str = "silent") -> Path:
     write_ass(directory, items)
     common.write_render_review(directory, mode, items, duration)
 
-    output = directory / "pr-demo.mp4"
+    output = directory / "walkthrough.mp4"
     subprocess.run(
         [
             ffmpeg,
@@ -223,7 +223,7 @@ def main() -> int:
         render(Path(args.scratch).resolve())
         return 0
     except (common.PreviewError, subprocess.CalledProcessError) as exc:
-        print(f"build-pr-demo: error: {exc}", file=sys.stderr)
+        print(f"build-video: error: {exc}", file=sys.stderr)
         return 1
 
 

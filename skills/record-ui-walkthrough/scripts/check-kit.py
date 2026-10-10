@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Probe the pr toolchain in one command."""
+"""Probe the record-ui-walkthrough toolchain in one command."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import argparse
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -17,7 +16,7 @@ from typing import Any
 import preview_common as common
 
 HERE = Path(__file__).resolve().parent
-CACHE = Path.home() / ".cache" / "pr" / "kit.json"
+CACHE = Path.home() / ".cache" / "record-ui-walkthrough" / "kit.json"
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -37,29 +36,6 @@ def save_cache(value: dict[str, Any]) -> None:
     CACHE.write_text(json.dumps(value, indent=2) + "\n")
 
 
-def check_gh() -> dict[str, Any]:
-    binary = shutil.which("gh")
-    if not binary:
-        return {"ready": False, "action": "Install GitHub CLI 2.100.0 or newer."}
-    version_result = run([binary, "--version"])
-    match = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", version_result.stdout)
-    version = match.group(0) if match else None
-    recent = bool(match and tuple(map(int, match.groups())) >= (2, 100, 0))
-    auth = run([binary, "auth", "status"])
-    ready = version_result.returncode == 0 and recent and auth.returncode == 0
-    result: dict[str, Any] = {
-        "ready": ready,
-        "binary": binary,
-        "version": version,
-        "authenticated": auth.returncode == 0,
-    }
-    if not ready:
-        result["action"] = (
-            "Upgrade gh to 2.100.0 or newer and run `gh auth login`."
-        )
-    return result
-
-
 def check_playwright(cache: dict[str, Any], refresh: bool) -> dict[str, Any]:
     binary = shutil.which("playwright-cli")
     if not binary:
@@ -75,9 +51,9 @@ def check_playwright(cache: dict[str, Any], refresh: bool) -> dict[str, Any]:
     if cached:
         return {**cache_key, "ready": True, "browserLaunch": "cached"}
 
-    run([binary, "-s=pr-kit", "close"])
-    launched = run([binary, "-s=pr-kit", "open", "about:blank"])
-    closed = run([binary, "-s=pr-kit", "close"])
+    run([binary, "-s=walkthrough-kit", "close"])
+    launched = run([binary, "-s=walkthrough-kit", "open", "about:blank"])
+    closed = run([binary, "-s=walkthrough-kit", "close"])
     ready = (
         version_result.returncode == 0
         and launched.returncode == 0
@@ -99,7 +75,7 @@ def check_playwright(cache: dict[str, Any], refresh: bool) -> dict[str, Any]:
 
 
 def check_video() -> dict[str, Any]:
-    result = run([sys.executable, str(HERE / "build-pr-demo.py"), "--print-ffmpeg"])
+    result = run([sys.executable, str(HERE / "build-video.py"), "--print-ffmpeg"])
     ready = result.returncode == 0 and bool(result.stdout.strip())
     value: dict[str, Any] = {
         "ready": ready,
@@ -172,7 +148,7 @@ def check_voice(cache: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("needs", nargs="+", choices=("capture", "video", "publish"))
+    parser.add_argument("needs", nargs="+", choices=("capture", "video"))
     parser.add_argument("--refresh", action="store_true")
     args = parser.parse_args()
     cache = load_cache()
@@ -182,8 +158,6 @@ def main() -> int:
     if "video" in args.needs:
         report["video"] = check_video()
         report["voice"] = check_voice(cache)
-    if "publish" in args.needs:
-        report["gh"] = check_gh()
     save_cache(cache)
     required_ready = all(
         section["ready"] for section in report.values() if not section.get("optional")

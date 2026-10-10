@@ -1,7 +1,6 @@
 # Record, render, verify
 
-The video branch, run on the after tree before the stills window: Preflight,
-Record, Render, Verify. Probe `check-kit.py capture video` per
+Preflight, Record, Render, Verify. Probe `check-kit.py capture video` per
 [setup](setup.md) first.
 
 One named `@playwright/cli` session. Explore with snapshots and refs; the
@@ -40,7 +39,7 @@ the painted claim is on screen, hold, then mark `end`.
 
 Write `$SCRATCH/preflight.js` as the no-footage twin of `hero.js`. It uses the
 same routes, setup actions, locators, and geometry helpers. For every
-representative surface it:
+shot-list surface it:
 
 1. reaches the intended state;
 2. requires the target locator count to equal one;
@@ -72,7 +71,7 @@ start/stop a short `$SCRATCH/video/preflight.webm` probe. Return
 Capture the actual return value as `$SCRATCH/preflight.json`, then run:
 
 ```bash
-python3 ~/.agents/skills/pr/scripts/validate-pr.py preflight "$SCRATCH"
+python3 ~/.agents/skills/record-ui-walkthrough/scripts/validate-video.py preflight "$SCRATCH"
 ```
 
 Delete `$SCRATCH/video/` after this gate passes. A failed preflight repairs the
@@ -91,7 +90,7 @@ and `shot-list.json`. The hero uses its one `page`; other tabs are
 exploration, not footage.
 
 Empty `<scratch>/video/` before `page.screencast.start`. Write one file:
-`<scratch>/video/pr-demo.webm`.
+`<scratch>/video/walkthrough.webm`.
 
 Assign `t0 = Date.now()` on the next line after `screencast.start` returns.
 `t0` and capture start are the same instant.
@@ -130,7 +129,7 @@ Redirect the hero's actual return value to `workflow.json` per
 [cli](cli.md). Then run:
 
 ```bash
-python3 ~/.agents/skills/pr/scripts/validate-pr.py record "$SCRATCH"
+python3 ~/.agents/skills/record-ui-walkthrough/scripts/validate-video.py record "$SCRATCH"
 ```
 
 This validates both manifests and timing, checks exact shot-list coverage, and
@@ -142,8 +141,8 @@ claim is absent, or the hold differs from estimated speech by more than about
 one second.
 
 Done when: scratch has one `.webm`; the manifests validate; workflow coverage
-equals the representative shot list; every clip has ordered start, claim, and
-end times; and every review frame shows the named claim, surface, and paint.
+equals the shot list; every clip has ordered start, claim, and end times; and
+every review frame shows the named claim, surface, and paint.
 
 ## Chapters
 
@@ -156,7 +155,7 @@ title card).
 Execute, do not rewrite:
 
 ```bash
-python3 ~/.agents/skills/pr/scripts/build-pr-demo-with-voice.py "$SCRATCH"
+python3 ~/.agents/skills/record-ui-walkthrough/scripts/build-video-with-voice.py "$SCRATCH"
 ```
 
 Voice is default. The script validates first, synthesizes each beat's
@@ -167,12 +166,12 @@ the beat's `time`, spans that line exactly, and overruns hold the last frame
 (motion is never retimed). Timeline: 0.3s lead-in, 0.4s gaps, 0.8s outro.
 Reads the single `<scratch>/video/*.webm` (1280×800) plus both manifests.
 Writes `<scratch>/demo.ass`, `<scratch>/voice/` audio,
-`<scratch>/pr-demo.mp4`, and `<scratch>/render-review.json`.
+`<scratch>/walkthrough.mp4`, and `<scratch>/render-review.json`.
 
 Fallback: only a missing or broken voice stack (or a host below the voice floor in [setup](setup.md#voice-stack)) warns on
-stderr and renders the silent video via `build-pr-demo.py`. Invalid or missing
-preview inputs are hard failures. Both paths use the same output names; the
-Review says which mode ran.
+stderr and renders the silent video via `build-video.py`. Invalid or missing
+inputs are hard failures. Both paths use the same output names; report
+which mode ran.
 
 The silent path uses the same explicit clips, estimates caption length at 2.5
 words/second, and freezes only when a line outlasts its clip. PlayRes matches
@@ -184,7 +183,7 @@ Both need an ffmpeg with libass (`subtitles` filter); the same finder as
 ## Verify
 
 ```bash
-python3 ~/.agents/skills/pr/scripts/validate-pr.py render "$SCRATCH"
+python3 ~/.agents/skills/record-ui-walkthrough/scripts/validate-video.py render "$SCRATCH"
 ```
 
 The validator checks H.264 / `yuv420p`, 1280×800, duration, stream mode, and
@@ -200,4 +199,4 @@ silent fallback has no audio; and the file is under the limits below.
 
 GitHub attachments: 10MB per image; 10MB video on Free, 100MB on paid. A 30s
 800p H.264 cut is well under a megabyte. If the mp4 approaches 10MB, shorten
-or re-encode before Review.
+or re-encode before handing it over.
